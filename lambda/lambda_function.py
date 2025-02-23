@@ -6,6 +6,8 @@
 # This sample is built using the handler classes approach in skill builder.
 import logging
 import ask_sdk_core.utils as ask_utils
+import config
+import math
 
 from ask_sdk_core.skill_builder import SkillBuilder
 from ask_sdk_core.dispatch_components import AbstractRequestHandler
@@ -18,6 +20,69 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
+import requests
+
+url = "https://openapi.emtmadrid.es/v1/mobilitylabs/user/login/"
+
+email = config.EMAIL
+password = config.PASSWORD
+
+def _extract_token(response):
+    """Extract the access token from the API response."""
+    try:
+        if response.get("code") != "01":
+            print("Invalid email or password")
+            return "Invalid token"
+        return response["data"][0]["accessToken"]
+    except:
+        return "Error de autenticación"
+    
+def authenticate():
+    headers = {
+        "accept": "*/*",
+        "email": email,
+        "password": password
+    }
+    response = requests.get(url, headers=headers)
+    return _extract_token(response.json())
+
+
+
+def getBusTime(token, stop_id, bus_id):
+    urlBusTime = f"https://openapi.emtmadrid.es/v1/transport/busemtmad/stops/{stop_id}/arrives/{bus_id}/"
+    headers = {
+        "accessToken": token,
+    }
+
+    body = {
+        "cultureInfo": "ES",
+        "Text_StopRequired_YN": "Y",
+        "Text_EstimationsRequired_YN": "Y",
+        "Text_IncidencesRequired_YN": "N"
+        }
+    
+    try:
+        response = requests.post(urlBusTime, headers=headers, json=body)
+        responseJson = response.json()
+        next_bus = None
+        next_bus2 = None
+        error = None
+        try:
+            next_bus = math.floor(responseJson['data'][0]['Arrive'][0]['estimateArrive']/60)
+        except:
+            error = "Error al obtener el tiempo del bus"
+        try:
+            next_bus2 = math.floor(responseJson['data'][0]['Arrive'][1]['estimateArrive']/60)
+        except:
+            pass
+    except:
+        error = "Error al hacer la petición de la parada"
+    return [next_bus, next_bus2, error]
+
+
+
+
+
 class LaunchRequestHandler(AbstractRequestHandler):
     """Handler for Skill Launch."""
     def can_handle(self, handler_input):
@@ -27,30 +92,22 @@ class LaunchRequestHandler(AbstractRequestHandler):
 
     def handle(self, handler_input):
         # type: (HandlerInput) -> Response
-        speak_output = "Hola bienvenido a la app de tiempos de bus de EMT Madrid"
+        token = authenticate()
+        stop = "985"
+        bus = "28"
+        next_bus, next_bus2, error = getBusTime(token, stop, bus)
+        speak_output = "Lo siento, el servicio no funciona correctamente."
+        if error:  # Verifica si hay un error antes de modificar speak_output
+            speak_output += f" {error}"
+        else:
+            speak_output = f"Quedan {next_bus} min para el bus {bus}"
+            if (next_bus2 != None):
+                speak_output += f" y {next_bus2} min para el siguiente"
 
         return (
             handler_input.response_builder
                 .speak(speak_output)
-                .ask(speak_output)
-                .response
-        )
-
-
-class GetTimeBusIntentHandler(AbstractRequestHandler):
-    """Handler for GetTimeBusIntent."""
-    def can_handle(self, handler_input):
-        # type: (HandlerInput) -> bool
-        return ask_utils.is_intent_name("GetTimeBusIntent")(handler_input)
-
-    def handle(self, handler_input):
-        # type: (HandlerInput) -> Response
-        speak_output = "Quedan X minutos para el autobús 28 y X minutos para el siguiente"
-
-        return (
-            handler_input.response_builder
-                .speak(speak_output)
-                # .ask("add a reprompt if you want to keep the session open for the user to respond")
+#                .ask(speak_output) -> ask si esperas una respuesta del usuario
                 .response
         )
 
@@ -171,7 +228,6 @@ class CatchAllExceptionHandler(AbstractExceptionHandler):
 sb = SkillBuilder()
 
 sb.add_request_handler(LaunchRequestHandler())
-sb.add_request_handler(GetTimeBusIntentHandler())
 sb.add_request_handler(HelpIntentHandler())
 sb.add_request_handler(CancelOrStopIntentHandler())
 sb.add_request_handler(FallbackIntentHandler())
