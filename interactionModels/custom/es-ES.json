@@ -19,19 +19,14 @@
           "samples": []
         },
         {
-          "slots": [],
-          "name": "GetTimeBusIntent",
-          "samples": [
-            "cuando pasa el bus",
-            "Cuánto le queda al bus",
-            "Cuándo pasa el siguiente bus",
-            "Cuándo pasa el bus",
-            "Cuánto le queda al autobús"
-          ]
-        },
-        {
           "name": "AMAZON.FallbackIntent",
           "samples": []
+        },
+        {
+          "name": "AMAZON.NoIntent",
+          "samples": [
+            "no hacer nada"
+          ]
         }
       ],
       "types": [],
